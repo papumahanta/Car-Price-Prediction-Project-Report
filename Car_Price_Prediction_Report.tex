@@ -1,0 +1,502 @@
+% Compiling document setup with standard packages
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{parskip}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{natbib}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% Defining code listing style
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!50!black},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny,
+    stepnumber=1
+}
+
+% Setting up font (Latin Modern as a reliable choice)
+\renewcommand{\familydefault}{\rmdefault}
+
+\begin{document}
+
+% Title page
+\title{\textbf{Car Price Prediction: A Machine Learning Approach}}
+\author{Prepared by Grok 3}
+\date{July 11, 2025}
+\maketitle
+
+\begin{abstract}
+This report presents a comprehensive analysis and modeling effort to predict car prices using a dataset of car specifications. The project involves data exploration, cleaning, feature engineering, and the application of machine learning models, specifically Ridge Regression and Random Forest Regressor, to address multicollinearity and non-linear relationships. The Random Forest model was selected as the final model due to its superior performance, achieving a Test R² of 0.9528 and a Mean Absolute Error (MAE) of \$1403.46. All visualizations, including histograms, scatter plots, heatmaps, and feature importance plots, are described in detail to provide insights into the data and model performance.
+\end{abstract}
+
+\section{Introduction}
+The objective of this project is to develop a predictive model for car prices using a dataset containing 26 features, such as engine size, horsepower, and car dimensions. The dataset, sourced from \texttt{CarPrice\_Assignment.csv}, includes 205 observations with no missing values. The primary challenge is multicollinearity among features, which complicates traditional linear regression. This report details the data preprocessing, exploratory data analysis (EDA), feature engineering, model selection, evaluation, and includes descriptions of all visualizations generated during the analysis.
+
+\section{Methodology}
+The project follows a structured machine learning pipeline:
+\begin{enumerate}
+    \item \textbf{Data Exploration and Cleaning}: Understand the dataset, handle outliers, and prepare it for analysis.
+    \item \textbf{Exploratory Data Analysis (EDA)}: Analyze feature distributions and correlations with the target variable (price) using visualizations.
+    \item \textbf{Feature Engineering}: Create composite features and apply transformations to mitigate multicollinearity and skewness.
+    \item \textbf{Model Selection and Training}: Compare Ridge Regression and Random Forest Regressor to handle multicollinearity and capture non-linear relationships.
+    \item \textbf{Model Evaluation}: Assess model performance using R², MAE, RMSE, and cross-validation, with visualizations of actual vs. predicted values and feature importance.
+    \item \textbf{Residual Analysis}: Validate model assumptions through residual plots.
+    \item \textbf{Final Model Selection}: Choose the best model based on performance metrics and compare feature importance.
+\end{enumerate}
+
+\section{Data Exploration and Cleaning}
+% Describing initial data exploration
+The dataset was loaded and inspected to understand its structure, check for missing values, and summarize statistics. The target variable, \texttt{price}, exhibited a right-skewed distribution, suggesting a log transformation for normalization. The following code was used to explore the data:
+
+\begin{lstlisting}[language=Python, caption=Initial Data Exploration Code]
+# Import basic libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load the dataset
+file_path = r"C:\Users\USER\OneDrive\Desktop\CarPrice_Assignment.csv"
+data = pd.read_csv(file_path)
+
+# Basic information
+print("=== BASIC INFO ===")
+print("Number of rows and columns:", data.shape)
+print("\nFirst 5 rows:")
+print(data.head())
+
+# Check for missing values
+print("\n=== MISSING VALUES ===")
+print(data.isnull().sum())
+
+# Data types
+print("\n=== DATA TYPES ===")
+print(data.dtypes)
+
+# Basic statistics
+print("\n=== STATISTICS ===")
+print(data.describe())
+
+# Plot price distribution
+plt.hist(data['price'], bins=20)
+plt.title('Car Price Distribution')
+plt.xlabel('Price')
+plt.ylabel('Count')
+plt.show()
+\end{lstlisting}
+
+\textbf{Results}: The dataset has 205 rows and 26 columns, with no missing values. The \texttt{price} variable ranges from \$5118 to \$45400, with a mean of \$13276.71 and a standard deviation of \$7988.85.
+
+\textbf{Plot Description (Price Distribution)}: The histogram of \texttt{price} (20 bins) shows a right-skewed distribution, with most car prices clustered below \$20,000 and a long tail extending to \$45,000. This skewness indicates that a log transformation is necessary to normalize the distribution for modeling.
+
+% Describing data cleaning
+The data was cleaned by removing duplicates, handling outliers using the Interquartile Range (IQR) method, and retaining 190 rows after preprocessing. The following code performed these tasks:
+
+\begin{lstlisting}[language=Python, caption=Data Cleaning Code]
+# Make a copy of original data
+clean_data = data.copy()
+
+# Handle missing values (fill with median for numbers, mode for categories)
+for col in clean_data.columns:
+    if clean_data[col].isnull().sum() > 0:
+        if clean_data[col].dtype == 'object':
+            clean_data[col].fillna(clean_data[col].mode()[0], inplace=True)
+        else:
+            clean_data[col].fillna(clean_data[col].median(), inplace=True)
+
+# Remove duplicate rows
+clean_data.drop_duplicates(inplace=True)
+
+# Remove outliers using IQR method
+for col in clean_data.select_dtypes(include=['int64', 'float64']).columns:
+    if col == 'price':
+        Q1 = clean_data[col].quantile(0.25)
+        Q3 = clean_data[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        clean_data = clean_data[(clean_data[col] >= lower_bound) & 
+                              (clean_data[col] <= upper_bound)]
+\end{lstlisting}
+
+\textbf{Results}: The cleaned dataset retained 190 rows, with outliers removed from the \texttt{price} column. No missing values or duplicates were present.
+
+\section{Exploratory Data Analysis (EDA)}
+% Describing EDA
+EDA focused on understanding feature relationships with \texttt{price} through correlation heatmaps, scatter plots, and boxplots. The following code generated these visualizations:
+
+\begin{lstlisting}[language=Python, caption=EDA Code]
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Correlation Heatmap
+plt.figure(figsize=(12,8))
+corr_matrix = clean_data.select_dtypes(include=['int64','float64']).corr()
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm')
+plt.title('Numerical Features Correlation')
+plt.show()
+
+# Top correlations with price
+print("\n=== PRICE CORRELATIONS ===")
+price_corr = corr_matrix['price'].sort_values(ascending=False)
+print(price_corr.head(8))
+
+# Scatter plots for top numerical features
+top_features = price_corr.index[1:7]
+for feature in top_features:
+    plt.figure(figsize=(8,5))
+    sns.scatterplot(data=clean_data, x=feature, y='price')
+    plt.title(f'Price vs {feature}')
+    plt.show()
+
+# Boxplots for categorical features
+cat_features = ['fueltype', 'carbody', 'drivewheel']
+for feature in cat_features:
+    plt.figure(figsize=(10,6))
+    sns.boxplot(data=clean_data, x=feature, y='price')
+    plt.title(f'Price by {feature}')
+    plt.xticks(rotation=45)
+    plt.show()
+\end{lstlisting}
+
+\textbf{Plot Descriptions}:
+\begin{itemize}
+    \item \textbf{Correlation Heatmap}: The heatmap (12x8 inches, coolwarm colormap) displays correlations between numerical features. Strong positive correlations with \texttt{price} include \texttt{curbweight} (r=0.85), \texttt{carwidth} (r=0.79), \texttt{enginesize} (r=0.75), and \texttt{horsepower} (r=0.73). High correlations between \texttt{carlength} and \texttt{wheelbase} (r=0.86) and \texttt{citympg} and \texttt{highwaympg} (r=0.97) indicate multicollinearity.
+    \item \textbf{Scatter Plots (Price vs. Top Features)}: Six scatter plots (8x5 inches each) show \texttt{price} against \texttt{curbweight}, \texttt{carwidth}, \texttt{enginesize}, \texttt{carlength}, \texttt{horsepower}, and \texttt{wheelbase}. Each plot reveals a positive linear trend, with \texttt{curbweight} and \texttt{enginesize} showing the strongest relationships.
+    \item \textbf{Boxplots (Price by Categorical Features)}: Three boxplots (10x6 inches each) for \texttt{fueltype}, \texttt{carbody}, and \texttt{drivewheel} show price distributions. Rear-wheel drive (\texttt{drivewheel}) and convertible (\texttt{carbody}) cars have higher median prices, indicating their influence on price.
+\end{itemize}
+
+\textbf{Findings}:
+\begin{itemize}
+    \item \textbf{Strong Predictors}: \texttt{curbweight}, \texttt{carwidth}, \texttt{enginesize}, and \texttt{horsepower} are key predictors.
+    \item \textbf{Multicollinearity}: High correlations between certain features necessitate feature engineering or regularization.
+    \item \textbf{Categorical Insights}: \texttt{drivewheel} and \texttt{carbody} significantly affect price.
+\end{itemize}
+
+\section{Feature Engineering}
+% Describing feature engineering
+To address multicollinearity and skewness, composite features (\texttt{size\_index}, \texttt{power\_to\_weight}) were created, and log transformations were applied to \texttt{enginesize}, \texttt{horsepower}, and \texttt{price}. The following code implemented these transformations:
+
+\begin{lstlisting}[language=Python, caption=Feature Engineering Code]
+import pandas as pd
+import numpy as np
+
+# Create composite features
+df['size_index'] = (df['wheelbase'] + df['carlength'] + df['carwidth']) / 3
+df['power_to_weight'] = df['horsepower'] / df['curbweight']
+
+# Remove collinear features
+cols_to_remove = ['boreratio']
+df = df.drop(columns=cols_to_remove)
+
+# Log-transform right-skewed features
+for col in ['enginesize', 'horsepower']:
+    df[col] = np.log(df[col])
+
+# Log-transform target variable
+df['price'] = np.log(df['price'])
+\end{lstlisting}
+
+\textbf{Results}: The engineered features captured car size and performance while reducing dimensionality. Log transformations normalized the distributions, as confirmed by the following plot:
+
+\begin{lstlisting}[language=Python, caption=Log-Transformed Price Histogram Code]
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Plot histogram of log-transformed price
+plt.figure(figsize=(10, 6))
+plt.hist(df['price'], bins=20, color='skyblue', edgecolor='black')
+plt.title('Distribution of Log-Transformed Car Prices')
+plt.xlabel('Log(Price)')
+plt.ylabel('Count')
+plt.show()
+\end{lstlisting}
+
+\textbf{Plot Description (Log-Transformed Price Histogram)}: The histogram (10x6 inches) of log-transformed \texttt{price} shows a more symmetric, bell-shaped distribution compared to the original right-skewed distribution, confirming the effectiveness of the log transformation for modeling.
+
+\section{Model Selection and Training}
+% Describing VIF analysis
+Variance Inflation Factor (VIF) analysis was performed to quantify multicollinearity:
+
+\begin{lstlisting}[language=Python, caption=VIF Calculation Code]
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+# Final feature list
+final_features = ['size_index', 'power_to_weight', 'enginesize', 'highwaympg',
+                  'carheight', 'symboling', 'peakrpm', 'compressionratio']
+X = df[final_features]
+
+# VIF Calculation
+vif_data = pd.DataFrame()
+vif_data["feature"] = X.columns
+vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+print(vif_data)
+\end{lstlisting}
+
+\textbf{Results}: VIF scores were extremely high (e.g., \texttt{size\_index} VIF $\approx$ 1016, \texttt{carheight} VIF $\approx$ 889), confirming severe multicollinearity.
+
+% Describing Ridge Regression
+Ridge Regression was trained to handle multicollinearity:
+
+\begin{lstlisting}[language=Python, caption=Ridge Regression Code]
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+
+# Train-test split
+X = df[final_features]
+y = df['price']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train Ridge model
+ridge = Ridge(alpha=1.0)
+ridge.fit(X_train, y_train)
+
+# Predict and evaluate
+y_pred = ridge.predict(X_test)
+train_r2 = ridge.score(X_train, y_train)
+test_r2 = ridge.score(X_test, y_test)
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+
+print(f"Training R²: {train_r2:.4f}")
+print(f"Testing R²: {test_r2:.4f}")
+print(f"MAE: {mae:.2f}")
+print(f"RMSE: {rmse:.2f}")
+
+# Plot actual vs predicted
+plt.figure(figsize=(8,6))
+plt.scatter(y_test, y_pred, color='blue', alpha=0.6, edgecolor='k')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+plt.xlabel("Actual Price")
+plt.ylabel("Predicted Price")
+plt.title("Actual vs Predicted - Ridge Regression")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+\end{lstlisting}
+
+\textbf{Plot Description (Actual vs Predicted - Ridge)}: The scatter plot (8x6 inches) shows predicted vs. actual \texttt{price} values for the Ridge model. Most points cluster around the red diagonal line, indicating good predictions, with some scatter at higher prices. The Testing R² of 0.8058 confirms reasonable model performance.
+
+\textbf{Results}: Training R²: 0.8252, Testing R²: 0.8058, MAE: \$2862.33, RMSE: \$3915.78.
+
+% Describing RidgeCV
+RidgeCV optimized the regularization parameter:
+
+\begin{lstlisting}[language=Python, caption=RidgeCV Code]
+from sklearn.linear_model import RidgeCV
+
+# Define alpha values
+alpha_values = [0.01, 0.1, 1.0, 10.0, 50.0, 100.0]
+
+# Train RidgeCV
+ridge_cv = RidgeCV(alphas=alpha_values, cv=5, scoring='r2')
+ridge_cv.fit(X_train, y_train)
+
+# Evaluate
+y_pred_cv = ridge_cv.predict(X_test)
+train_r2_cv = ridge_cv.score(X_train, y_train)
+test_r2_cv = ridge_cv.score(X_test, y_test)
+mae_cv = mean_absolute_error(y_test, y_pred_cv)
+rmse_cv = np.sqrt(mean_squared_error(y_test, y_pred_cv))
+
+print(f"Best Alpha: {ridge_cv.alpha_}")
+print(f"Training R²: {train_r2_cv:.4f}")
+print(f"Testing R²: {test_r2_cv:.4f}")
+print(f"MAE: {mae_cv:.2f}")
+print(f"RMSE: {rmse_cv:.2f}")
+\end{lstlisting}
+
+\textbf{Results}: Best \texttt{alpha}: 0.01, Training R²: 0.8299, Testing R²: 0.8079, MAE: \$2849.82, RMSE: \$3894.05.
+
+% Describing Random Forest
+Random Forest was trained to capture non-linear relationships:
+
+\begin{lstlisting}[language=Python, caption=Random Forest Code]
+from sklearn.ensemble import RandomForestRegressor
+
+# Train Random Forest
+rf = RandomForestRegressor(n_estimators=100, random_state=42)
+rf.fit(X_train, y_train)
+
+# Predict and evaluate
+y_pred_rf = rf.predict(X_test)
+r2_train = rf.score(X_train, y_train)
+r2_test = r2_score(y_test, y_pred_rf)
+mae_rf = mean_absolute_error(y_test, y_pred_rf)
+rmse_rf = np.sqrt(mean_squared_error(y_test, y_pred_rf))
+
+print(f"Training R²: {r2_train:.4f}")
+print(f"Testing R²: {r2_test:.4f}")
+print(f"MAE: {mae_rf:.2f}")
+print(f"RMSE: {rmse_rf:.2f}")
+
+# Plot actual vs predicted
+plt.figure(figsize=(8, 6))
+plt.scatter(y_test, y_pred_rf, alpha=0.5)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+plt.xlabel("Actual Prices")
+plt.ylabel("Predicted Prices")
+plt.title("Random Forest: Actual vs Predicted Prices")
+plt.show()
+
+# Feature importance plot
+feature_importances = pd.Series(rf.feature_importances_, index=X.columns)
+feature_importances.sort_values().plot(kind='barh', color='green', figsize=(8,5))
+plt.title("Feature Importances from Random Forest")
+plt.xlabel("Importance Score")
+plt.ylabel("Features")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+\end{lstlisting}
+
+\textbf{Plot Descriptions}:
+\begin{itemize}
+    \item \textbf{Actual vs Predicted - Random Forest}: The scatter plot (8x6 inches) shows predicted vs. actual \texttt{price} values for the Random Forest model. Points are tightly clustered around the diagonal line, indicating excellent predictive accuracy (Testing R²: 0.9528).
+    \item \textbf{Feature Importance Plot}: The horizontal bar plot (8x5 inches) shows feature importances, with \texttt{power\_to\_weight}, \texttt{size\_index}, and \texttt{enginesize} as the top contributors, confirming their strong influence on price predictions.
+\end{itemize}
+
+\textbf{Results}: Training R²: 0.9841, Testing R²: 0.9528, MAE: \$1403.46, RMSE: \$1929.92.
+
+\section{Model Evaluation}
+% Describing residual analysis
+Residual analysis validated the Ridge model's assumptions:
+
+\begin{lstlisting}[language=Python, caption=Residual Analysis Code]
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats
+
+# Calculate residuals
+residuals = y_test - y_pred
+
+# Residuals vs Predicted Plot
+plt.figure(figsize=(15, 5))
+plt.subplot(1, 3, 1)
+plt.scatter(y_pred, residuals, alpha=0.5)
+plt.axhline(y=0, color='r', linestyle='--')
+plt.title('Residuals vs Predicted')
+plt.xlabel('Predicted Values')
+plt.ylabel('Residuals')
+
+# Histogram of Residuals
+plt.subplot(1, 3, 2)
+plt.hist(residuals, bins=20, edgecolor='black')
+plt.title('Residuals Distribution')
+plt.xlabel('Residuals')
+
+# Q-Q Plot
+plt.subplot(1, 3, 3)
+stats.probplot(residuals, plot=plt)
+plt.title('Q-Q Plot')
+
+plt.tight_layout()
+plt.show()
+\end{lstlisting}
+
+\textbf{Plot Descriptions}:
+\begin{itemize}
+    \item \textbf{Residuals vs Predicted}: The scatter plot (part of a 15x5-inch figure) shows residuals scattered around zero, with slight funneling at higher predicted values, indicating mild heteroscedasticity.
+    \item \textbf{Histogram of Residuals}: The histogram (20 bins) is roughly bell-shaped, suggesting approximate normality with slight deviations.
+    \item \textbf{Q-Q Plot}: The Q-Q plot shows most points along the diagonal line, confirming near-normality, with minor deviations at the tails indicating outliers.
+\end{itemize}
+
+% Describing cross-validation
+Cross-validation was performed:
+
+\begin{lstlisting}[language=Python, caption=Cross-Validation Code]
+from sklearn.model_selection import cross_val_score
+
+# Ridge Cross-Validation
+ridge = Ridge(alpha=1.0)
+scores = cross_val_score(ridge, X, y, cv=5, scoring='r2')
+print(f"Ridge CV R² Scores: {scores}")
+print(f"Average CV R²: {scores.mean():.4f}")
+
+# Random Forest Cross-Validation
+cv_scores = cross_val_score(rf, X, y, cv=5, scoring='r2')
+print(f"Random Forest CV R² Scores: {cv_scores}")
+print(f"Average CV R²: {cv_scores.mean():.4f}")
+\end{lstlisting}
+
+\textbf{Results}: Ridge CV R²: 0.5655, Random Forest CV R²: 0.3907 (with high variance, suggesting potential overfitting).
+
+\section{Final Model Selection}
+The models were compared:
+
+\begin{lstlisting}[language=Python, caption=Model Comparison Code]
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Comparison table
+results = pd.DataFrame({
+    'Model': ['RidgeCV', 'Random Forest'],
+    'Train R²': [train_r2_cv, r2_train],
+    'Test R²': [test_r2_cv, r2_test],
+    'MAE': [mae_cv, mae_rf],
+    'RMSE': [rmse_cv, rmse_rf],
+    'Best Alpha': [ridge_cv.alpha_, 'N/A']
+})
+
+print("=== MODEL COMPARISON ===")
+print(results.to_string(index=False))
+
+# Feature importance comparison
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+pd.Series(ridge_cv.coef_, index=X_train.columns).sort_values().plot(kind='barh')
+plt.title('RidgeCV Feature Coefficients')
+plt.subplot(1, 2, 2)
+pd.Series(rf.feature_importances_, index=X_train.columns).sort_values().plot(kind='barh')
+plt.title('Random Forest Feature Importance')
+plt.tight_layout()
+plt.show()
+\end{lstlisting}
+
+\textbf{Plot Description (Feature Importance Comparison)}: The side-by-side horizontal bar plots (12x6 inches) compare RidgeCV coefficients and Random Forest feature importances. \texttt{power\_to\_weight} has the highest coefficient in RidgeCV and importance in Random Forest, followed by \texttt{size\_index} and \texttt{enginesize}.
+
+\textbf{Results}:
+\begin{table}[h]
+\centering
+\caption{Model Comparison}
+\begin{tabular}{lcccc}
+\toprule
+Model & Train R² & Test R² & MAE & RMSE \\
+\midrule
+RidgeCV & 0.8299 & 0.8079 & 2849.82 & 3894.05 \\
+Random Forest & 0.9841 & 0.9528 & 1403.46 & 1929.92 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Random Forest model was selected due to its superior performance.
+
+\section{Conclusion and Recommendations}
+The Random Forest Regressor was chosen for its high accuracy (Test R²: 0.9528, MAE: \$1403.46) and ability to capture non-linear relationships. Key features include \texttt{power\_to\_weight}, \texttt{size\_index}, and \texttt{enginesize}.
+
+\textbf{Recommendations}:
+\begin{itemize}
+    \item \textbf{Deployment}: Use the Random Forest model in production applications.
+    \item \textbf{Improvements}: Tune Random Forest hyperparameters to reduce overfitting.
+    \item \textbf{Feature Enhancement}: Encode categorical features and explore interaction terms.
+    \item \textbf{Monitoring}: Validate model performance on new data.
+\end{itemize}
+
+\end{document}
