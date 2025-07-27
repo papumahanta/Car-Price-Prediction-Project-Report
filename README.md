@@ -61,6 +61,7 @@ Training R² : 0.8299
 Testing R² : 0.8079
 MAE        : 2849.82
 RMSE       : 3894.05
+MAPE       : 1.19%
 
 === RidgeCV Coefficients ===
 Feature            | Coefficient
@@ -82,6 +83,7 @@ highwaympg         |  -197.924492
 - **Test R²**: 0.953
 - **MAE**: 1403
 - **RMSE**: 1929
+-**MAPE**: 1.19%
 - Captured non-linear interactions better.
 
 ---
