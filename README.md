@@ -54,15 +54,16 @@ This project involves data preprocessing, feature engineering, and regression mo
 - **Test R²**: 0.808
 - Improved generalization slightly.
 
-```output
-```text
+
+
 === RidgeCV MODEL SUMMARY ===
 Training R² : 0.8299
 Testing R² : 0.8079
 MAE        : 2849.82
 RMSE       : 3894.05
 MAPE       : 1.19%
-
+```output
+```text
 === RidgeCV Coefficients ===
 Feature            | Coefficient
 ------------------ | -------------
